@@ -1,0 +1,54 @@
+library(tidyverse)
+library(gganimate)
+library(gapminder)
+theme_set(theme_classic())
+
+data <- read.csv("C:/Users/gbrll/Dropbox/NTU LIFE/Year 4/CDAS/COVID/covidtest.csv",header=TRUE,sep=",")
+data$Lat<-NULL
+data$City<-NULL
+data$Long<-NULL
+
+#arrange data in order
+tidy_data<-data %>%
+  gather(year,value,d100:d154)
+
+#combine similar values into one
+sort_data<-tidy_data %>% group_by(country,year)%>% summarise(value = sum(value))
+
+#Ranking of countries by date
+rank_data <- sort_data %>%
+  group_by(year) %>%
+  mutate(rank = min_rank(-value) * 1,
+         Value_rel = value/value[rank==1],
+         Value_lbl = paste0(" ",value)) %>%
+  filter(rank <=10) %>%
+  ungroup()
+
+#manual edit of vlookup on excel to match markers(d100-d154 to the respective dates)
+merge_data <- read.csv("C:/Users/gbrll/Dropbox/NTU LIFE/Year 4/CDAS/COVID/covidsort.csv",header=TRUE,sep=",")
+merge_data<-transform(merge_data, year = as.Date(year,"%m/%d/%Y")) #standardise to date format
+
+#animation plot
+p <- ggplot(merge_data, aes(rank, group = country,
+                     fill = as.factor(country), color = as.factor(country))) +
+  geom_tile(aes(y = value/2,
+                height = value,
+                width = 0.9), alpha = 0.8, color = NA) +
+  geom_text(aes(y = 0, label = paste(country, " ")), vjust = 0.2, hjust = 1) +
+  geom_text(aes(y=value,label = Value_lbl, hjust=0)) +
+  coord_flip(clip = "off", expand = FALSE) +
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_reverse() +
+  guides(color = FALSE, fill = FALSE) +
+
+  labs(title='{closest_state}', x = "", y = "Number of Coronavirus Cases",
+       caption = "Sources: WHO") +
+  theme(plot.title = element_text(hjust = 0, size = 22),
+        axis.ticks.y = element_blank(),  # These relate to the axes post-flip
+        axis.text.y  = element_blank(),  # These relate to the axes post-flip
+        plot.margin = margin(1,1,1,4, "cm")) +
+
+  transition_states(year, transition_length = 4, state_length = 1) +
+  ease_aes('cubic-in-out')
+
+animate(p, 250, fps = 10, duration = 25, width = 600, height = 400,renderer = gifski_renderer("corona.gif"))
